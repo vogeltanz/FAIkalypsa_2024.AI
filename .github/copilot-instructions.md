@@ -32,7 +32,7 @@ Preserve Unity .meta files.
 Do not manually modify Unity-generated project files.
 Do not modify scenes, prefabs, animations, materials, terrain, or other serialized assets unless the assigned issue explicitly requires it.
 Do not replace or modify third-party assets unless the assigned issue explicitly requires it.
-Do not use old Input System in Unity.
+Do not use Unity's legacy Input Manager for new functionality. Use the Unity Input System package instead. Existing code using the legacy Input Manager may only be modified when explicitly required by the assigned issue.
 
 Architecture and design
 
