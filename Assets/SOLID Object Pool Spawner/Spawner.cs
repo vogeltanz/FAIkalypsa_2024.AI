@@ -60,7 +60,7 @@ namespace SOLID_Object_Pool_Spawner
         protected virtual void Initialize()
         {
             objectSource = CreateObjectSource();
-            placement = new SpawnPlacement(positionPoint, spawnedObject.ParentObject != null, customPosition, randPosFactor, rotation, randRotFactor);
+            placement = new SpawnPlacement(positionPoint, spawnedObject != null && spawnedObject.ParentObject != null, customPosition, randPosFactor, rotation, randRotFactor);
 
             //can be used, e.g., for player respawn when the player where inserted to the scene by a designer (i.e. not by a code)
             if (spawnedExternallyFirst == true && spawnedObject != null)
@@ -76,7 +76,7 @@ namespace SOLID_Object_Pool_Spawner
         }
 
 
-        public void SpawnObject()
+        public virtual void SpawnObject()
         {
             if (Random.value > spawnChance)
             {
@@ -86,7 +86,7 @@ namespace SOLID_Object_Pool_Spawner
             Spawn(objectSource.Acquire());
         }
 
-        public void SpawnObject(GameObject obj)
+        public virtual void SpawnObject(GameObject obj)
         {
             if (Random.value > spawnChance)
             {
@@ -104,6 +104,7 @@ namespace SOLID_Object_Pool_Spawner
                 return;
             }
 
+            placement.Configure(positionPoint, spawnedObject != null && spawnedObject.ParentObject != null, customPosition, randPosFactor, rotation, randRotFactor);
             placement.Apply(obj);
             ConnectDespawnEvent(obj);
             Reinitialize(obj);
@@ -136,7 +137,7 @@ namespace SOLID_Object_Pool_Spawner
             DeSpawn(obj, false);
         }
 
-        public void DeSpawn(GameObject obj, bool setActive)
+        public virtual void DeSpawn(GameObject obj, bool setActive)
         {
             //disconnect method with the despawn event
             IDespawnable<GameObject> despawnableObj = obj.GetComponent<IDespawnable<GameObject>>();
