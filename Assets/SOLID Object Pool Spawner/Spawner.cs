@@ -1,8 +1,10 @@
-﻿using SOLID_Object_Pool;
+using SOLID_Object_Pool;
 using UnityEngine;
 
 namespace SOLID_Object_Pool_Spawner
 {
+    // Integrates Unity with the spawning logic. Composes an object source (where objects come from)
+    // and a placement (where and how they are put into the scene).
     public class Spawner : MonoBehaviour
     {
         [Tooltip("Assign a reference which implements ISpawnTriggerable interface (optional).")]
@@ -34,6 +36,10 @@ namespace SOLID_Object_Pool_Spawner
         private Vector3 randRotFactor;
 
 
+        private ISpawnedObjectSource objectSource;
+        private SpawnPlacement placement;
+
+
         protected void Awake()
         {
             Initialize();
@@ -53,91 +59,75 @@ namespace SOLID_Object_Pool_Spawner
         //Create objects before the game starts to make the ready to be reused.
         protected virtual void Initialize()
         {
+            objectSource = CreateObjectSource();
+            placement = new SpawnPlacement(positionPoint, spawnedObject != null && spawnedObject.ParentObject != null, customPosition, randPosFactor, rotation, randRotFactor);
+
             //can be used, e.g., for player respawn when the player where inserted to the scene by a designer (i.e. not by a code)
-            if (spawnedExternallyFirst == true && spawnedObject != null)
+            if (spawnedExternallyFirst == true && spawnedObject != null)
             {
-                //connect method with the despawn event if no count is set but there is a pool object
-                IDespawnable<GameObject> despawnableObj = spawnedObject.Object.GetComponent<IDespawnable<GameObject>>();
-                if (despawnableObj != null)
-                {
-                    despawnableObj.Despawn += this.DeSpawn;
-                }
+                ConnectDespawnEvent(spawnedObject.Object);
             }
+        }
+
+        //Defines where spawned objects come from. Override to provide a different source.
+        protected virtual ISpawnedObjectSource CreateObjectSource()
+        {
+            return new DirectObjectSource(spawnedObject);
         }
 
 
         public virtual void SpawnObject()
         {
-            GameObject obj = spawnedObject.Object;
-            SpawnObject(obj, customPosition, randPosFactor, rotation, randRotFactor, spawnChance);
+            if (Random.value > spawnChance)
+            {
+                return;
+            }
+
+            Spawn(objectSource.Acquire());
         }
 
         public virtual void SpawnObject(GameObject obj)
         {
-            SpawnObject(obj, customPosition, randPosFactor, rotation, randRotFactor, spawnChance);
+            if (Random.value > spawnChance)
+            {
+                return;
+            }
+
+            Spawn(obj);
         }
 
-        //Manages the spawning of objects based on the input parameter values of object properties.
-        protected void SpawnObject(GameObject obj, Vector3 position, Vector3 randPosFactor, Vector3 rotation, Vector3 randRotFactor, float spawnChance)
+        private void Spawn(GameObject obj)
         {
-            //Generate random value and spawn based on it.
-            if (Random.value <= spawnChance)
+            if (obj == null)
             {
-                if (obj != null)
-                {
+                Debug.LogWarning("No GameObject was spawned! (Pool with objects is probably empty)");
+                return;
+            }
 
-                    Vector3 randomPos = new Vector3(Random.Range(-randPosFactor.x, randPosFactor.x),
-                                                 Random.Range(-randPosFactor.y, randPosFactor.y),
-                                                 Random.Range(-randPosFactor.z, randPosFactor.z));
+            placement.Configure(positionPoint, spawnedObject != null && spawnedObject.ParentObject != null, customPosition, randPosFactor, rotation, randRotFactor);
+            placement.Apply(obj);
+            ConnectDespawnEvent(obj);
+            Reinitialize(obj);
 
-                    Vector3 randomRot = new Vector3(Random.Range(-randRotFactor.x, randRotFactor.x),
-                                                 Random.Range(-randRotFactor.y, randRotFactor.y),
-                                                 Random.Range(-randRotFactor.z, randRotFactor.z));
+            //activate game object after reinitialization
+            obj.SetActive(true);
+        }
 
-                    obj.transform.localRotation = Quaternion.Euler(rotation + randomRot);
+        //reinitialization of all game object's scripts (just prior to activation of game object)
+        private static void Reinitialize(GameObject obj)
+        {
+            foreach (var reinitializableObj in obj.GetComponents<IReinitializable>())
+            {
+                reinitializableObj?.Reinitializate();
+            }
+        }
 
-
-                    //connect method with the despawn event
-                    IDespawnable<GameObject> despawnableObj = obj.GetComponent<IDespawnable<GameObject>>();
-                    if (despawnableObj != null)
-                    {
-                        despawnableObj.Despawn += this.DeSpawn;
-                    }
-
-
-                    //set position of the spawned object
-                    if (positionPoint)
-                    {
-                        obj.transform.position = positionPoint.transform.position + randomPos;
-                    }
-                    else if (spawnedObject.ParentObject)
-                    {
-                        obj.transform.localPosition = position + randomPos;
-                    }
-                    else
-                    {
-                        obj.transform.position = position + randomPos;
-                    }
-
-
-                    //reinitialization of all game object's scripts (just prior to activation of game object)
-                    IReinitializable[] reinitializableObjs = obj.GetComponents<IReinitializable>();
-                    foreach (var reinitializableObj in reinitializableObjs)
-                    {
-                        if (reinitializableObj != null)
-                        {
-                            reinitializableObj.Reinitializate();
-                        }
-                    }
-
-
-                    //activate game object after reinitialization
-                    obj.SetActive(true);
-                }
-                else
-                {
-                    Debug.LogWarning("No GameObject was spawned! (Pool with objects is probably empty)");
-                }
+        private void ConnectDespawnEvent(GameObject obj)
+        {
+            IDespawnable<GameObject> despawnableObj = obj.GetComponent<IDespawnable<GameObject>>();
+            if (despawnableObj != null)
+            {
+                despawnableObj.Despawn += this.DeSpawn;
             }
         }
 
@@ -156,6 +146,7 @@ namespace SOLID_Object_Pool_Spawner
                 despawnableObj.Despawn -= this.DeSpawn;
             }
             obj.SetActive(setActive);
+            objectSource.Release(obj);
         }
     }
 }
